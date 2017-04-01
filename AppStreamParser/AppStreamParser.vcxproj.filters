@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{92564c31-b6ae-4a2f-abb5-fcea230bf7dd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AppStreamParser.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CAnsiString.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CWinSocket.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CWinThread.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CEngine.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CWinMutex.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CParserHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\CAnsiString.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CWinSocket.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CWinThread.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\IMutex.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ISocket.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\IThread.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CCommonTypes.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CEngine.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CWinMutex.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CParserHandler.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

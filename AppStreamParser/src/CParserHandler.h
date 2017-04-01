@@ -6,6 +6,7 @@
 #include <fstream>
 #include "CCommonTypes.h"
 #include "CAnsiString.h"
+#include "ISocket.h"
 
 using namespace Types;
 using namespace std;
@@ -21,8 +22,9 @@ public:
 	// return
 	// 0 success
 	// 1 field type isn't valid
-	int addField(char* fieldName, char* fieldType, int fieldOffset, int fieldSize);
-	int parseStream(char* bufStream, int lengthOfStream, bool isBigEndian);
+	TInt32 addField(char* fieldName, char* fieldType, int fieldOffset, int fieldSize);
+	TInt32 parseStream(char* bufStream, int lengthOfStream, bool isBigEndian);
+	TInt32 sendStream(ISocket* socketout);
 	bool saveToFile(char* fileName);
 	void printOut();
 private:

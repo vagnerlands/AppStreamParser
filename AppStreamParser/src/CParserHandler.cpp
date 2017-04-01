@@ -12,7 +12,7 @@ CParserHandler * CParserHandler::instance()
 	return s_pInstance;
 }
 
-int 
+TInt32
 CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int fieldSize)
 {
 	// 0 == success
@@ -71,7 +71,7 @@ CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int 
 	return retVal;
 }
 
-int 
+TInt32
 CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndian)
 {
 	// current buffer position/pointer
@@ -94,7 +94,7 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 			memcpy(allocBuf, bufStream + curBuffPos, node->m_size);
 			// if this is big endian, perform byte swapping accordingly
 			// not sure if char type should be parsed, though
-			if (isBigEndian)
+			if ((isBigEndian) && (node->m_type != EFIELDTYPES_CHAR))
 			{
 				// byte iterator 
 				int bi = 0;
@@ -194,6 +194,13 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 		}
 
 	}
+	return 0;
+}
+
+TInt32
+CParserHandler::sendStream(ISocket * socketout)
+{
+	socketout->write("a", 1);
 	return 0;
 }
 

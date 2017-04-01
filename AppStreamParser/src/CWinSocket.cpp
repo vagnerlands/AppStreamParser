@@ -48,7 +48,16 @@ CWinSocket::startListenSocket()
 TInt32 
 CWinSocket::write(const TByte* buffer, TInt32 const size)
 {
-	return 0;
+	TInt32 iResult = 0;
+	//write(1,"Received a datagram: ", 21);
+	m_incmsgAddr.sin_family = AF_INET;
+	m_incmsgAddr.sin_port = htons(s_GAME_CONNECTION_PORT);
+	m_incmsgAddr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+
+	TInt32 addrSize = sizeof(sockaddr_in);
+	iResult = sendto(m_fd, "Got your message\n", 17, 0, (struct sockaddr *)&m_incmsgAddr, addrSize);
+	// return status of the sent message
+	return iResult;
 }
 
 
@@ -64,12 +73,7 @@ CWinSocket::read(TByte buffer[], TUInt32 size)
 		//printf("Received a datagram: %s", buffer);
 		return iResult;
 	}
-	//write(1,"Received a datagram: ", 21);
-	//write(1,buf,n);
-	
-	//n = sendto(sock, "Got your message\n", 17, 0, (struct sockaddr *)&from, fromlen);
-	//if (n<0)error("sendto");
-	// message sent
+
 	return -1;
 }
 

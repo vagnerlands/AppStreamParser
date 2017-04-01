@@ -45,6 +45,7 @@ void CEngine::GetStream()
 	// if a message was retrieved, this value shall be positive
 	if (m_bufLength > 0)
 	{
+		//CParserHandler::instance()->sendStream(m_socket);
 		// new item to be pushed into the queue
 		SIncomingMsg newMsg;
 		newMsg.m_length = m_bufLength;
@@ -76,6 +77,9 @@ void CEngine::start()
 	CParserHandler::instance()->addField("Length", "uint", 4, 4);
 	CParserHandler::instance()->addField("Latitude", "float", 8, 4);
 	CParserHandler::instance()->addField("Longitude", "float", 12, 4);
+	CParserHandler::instance()->addField("Name1", "char", 16, 1);
+	CParserHandler::instance()->addField("Name2", "char", 17, 1);
+	CParserHandler::instance()->addField("Valid", "bool", 18, 4);
 	// uses clear screen command - to clean whatever was printed so far...
 	system("cls");
 	// creates a buffer mutex to avoid concurrency on m_messageQ

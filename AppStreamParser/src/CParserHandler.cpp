@@ -1,6 +1,7 @@
 #include "CParserHandler.h"
 #include <stdlib.h>
 #include <windows.h>
+#include <sstream>
 CParserHandler* CParserHandler::s_pInstance = nullptr;
 
 CParserHandler * CParserHandler::instance()
@@ -13,15 +14,28 @@ CParserHandler * CParserHandler::instance()
 }
 
 TInt32
-CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int fieldSize)
+CParserHandler::addField(char* structureName, 
+	TInt32 opCode,
+	char* fieldName, 
+	char* fieldType, 
+	TInt32 fieldOffset, 
+	TInt32 fieldSize, 
+	char* arr[s_MAX_ENUMERATORS_IN_GILDA])
 {
 	// 0 == success
 	// any other value means failure
-	int retVal = 0;
+	TInt32 retVal = 0;
 	// data to be added to the table
 	SField newDBEntry;
 	string fType(fieldType);
 	string fName(fieldName);
+	string fStructureName(structureName);
+	// temporary buffer - convert from integer to string operation
+	// no need for very long buffer
+	char tempBuf[18];
+	// converts opCode to char[]
+	sprintf_s(tempBuf, "%d", opCode);
+
 	cout << "addField called " << fieldType << " " << fieldType << endl;
 	if (fType == "int")
 	{
@@ -31,7 +45,7 @@ CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int 
 	{
 		newDBEntry.m_type = EFIELDTYPES_UINT32;
 	}
-	else if (fType == "float")
+	else if ((fType == "float") || (fType == "real"))
 	{
 		newDBEntry.m_type = EFIELDTYPES_FLOAT;
 	}
@@ -47,7 +61,17 @@ CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int 
 	{
 		newDBEntry.m_type = EFIELDTYPES_BOOL;
 	}
-	else
+	else if (fType == "enum")
+	{
+		newDBEntry.m_type = EFIELDTYPES_ENUM;
+        for (int i = 0; i < s_MAX_ENUMERATORS_IN_GILDA; i++)
+        {
+            if (arr[i][0] == 0) break;
+            newDBEntry.m_enum_dictionary.insert(make_pair(i, arr[i]));
+        }
+        
+	}
+    else
 	{
 		// type is not valid
 		retVal = 1;
@@ -64,8 +88,26 @@ CParserHandler::addField(char* fieldName, char* fieldType, int fieldOffset, int 
 
 	if (retVal == 0)
 	{
-		// adds a new item to the data structure
-		m_dictionary.insert({ fieldOffset , newDBEntry });
+		// try to find given structure name in m_dictionary
+		MessageStructureMap::iterator structureIterator = m_dictionaryIndexedByStructName.find(fStructureName);
+		// in case the iterator is not valid
+		if (structureIterator == m_dictionaryIndexedByStructName.end())
+		{
+			// creates a new DS for the field messages within this structure
+			shared_ptr<MessageFieldMap> newMsgField( new MessageFieldMap() );
+			//MessageFieldMap newMsg;
+			//newMsg.insert(make_pair(fieldOffset, newDBEntry));
+			// adds the new field to this fields DS
+			newMsgField->insert(make_pair(fieldOffset, newDBEntry));
+			// then adds a new item for the Structure
+			m_dictionaryIndexedByStructName.insert(make_pair(fStructureName, newMsgField));
+			m_dictionaryIndexedByOpCode.insert(make_pair(tempBuf, newMsgField));
+		}
+		else
+		{
+			// in case the structure already exists - just adds it to the DS
+			structureIterator->second->insert(make_pair(fieldOffset, newDBEntry));
+		}
 	}
 
 	return retVal;
@@ -76,13 +118,23 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 {
 	// current buffer position/pointer
 	int curBuffPos = 0;
+    // string stream to convert float to string
+    stringstream ss(stringstream::in | stringstream::out);
+    // temporary buffer (for enumeration swapping
+    char buffer[33];
+    // search iterator
+	GildaEnumMap::iterator locIt;
+	// TODO: must add some pre-parser of "bufStream" to find the opcode and use it to search
+	// which structure iterator to be used in the parsing
+	MessageStructureMap::iterator structureIterator = m_dictionaryIndexedByOpCode.begin();
 	// go over till the pointer has reached the end of the stream buffer
 	while (curBuffPos < lengthOfStream)
 	{
-		if (m_dictionary.find(curBuffPos) != m_dictionary.end())
+		MessageFieldMap::iterator fieldIterator =  structureIterator->second->find(curBuffPos);
+		if (fieldIterator != structureIterator->second->end())
 		{
 			// input node
-			SField* node = &m_dictionary[curBuffPos];
+			SField* node = &fieldIterator->second;
 			// integer/float/double convertion buffer
 			char numericBuf[20];
 			string t;
@@ -94,11 +146,11 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 			memcpy(allocBuf, bufStream + curBuffPos, node->m_size);
 			// if this is big endian, perform byte swapping accordingly
 			// not sure if char type should be parsed, though
-			if ((isBigEndian) && (node->m_type != EFIELDTYPES_CHAR))
+			if (isBigEndian)
 			{
 				// byte iterator 
-				int bi = 0;
-				int fieldOffset = node->m_size - 1;
+				TInt32 bi = 0;
+				TInt32 fieldOffset = node->m_size - 1;
 				// iterates till the current byte iterator cursor reaches the middle point
 				while (bi < (fieldOffset - bi))
 				{
@@ -113,7 +165,7 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 			{
 				case EFIELDTYPES_BOOL:
 					// temporary buffer
-					int boolVal;
+					TInt32 boolVal;
 					// high risk of mem corruption!!!
 					memcpy(&boolVal, allocBuf, node->m_size);
 					if (boolVal > 0)
@@ -127,9 +179,34 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 						node->m_value = "FALSE";
 					}
 					break;
+				case EFIELDTYPES_ENUM:
+					// temporary buffer
+					TUInt32 enumUIntVal;
+					// high risk of mem corruption!!!
+					memcpy(&enumUIntVal, allocBuf, node->m_size);
+                    //search for the value in the enum_dictionary
+                    locIt = node->m_enum_dictionary.find(enumUIntVal);
+                    if (locIt != node->m_enum_dictionary.end())
+                    {
+                        if (node->m_value != locIt->second)
+                        {
+                            node->m_refresh = true;
+                        }
+                        node->m_value = locIt->second;
+                    }
+                    else
+                    {
+                        node->m_value = "<!> PARS_FAIL[";
+                        _itoa(enumUIntVal, buffer, 10);/*to_string(enumUIntVal)*/;
+                        node->m_value += buffer;
+                        node->m_value += "]";
+                    }
+                    
+					break;
+
 				case EFIELDTYPES_UINT32:
 					// temporary buffer
-					unsigned int uintVal;
+					TUInt32 uintVal;
 					// high risk of mem corruption!!!
 					memcpy(&uintVal, allocBuf, node->m_size);
 					sprintf_s(numericBuf, "%d", uintVal);
@@ -209,12 +286,19 @@ bool CParserHandler::saveToFile(char * fileName)
 	// assuming that given filename is okay
 	// opens a fd handler
 	std::ofstream ofs(fileName, ofstream::out);
-	// iterates in the map (according to the offset order)
-	for (MessageFieldMap::iterator iter = m_dictionary.begin(); iter != m_dictionary.end(); iter++)
+
+	// iterates through opcode - but it should have identical fields / content as indexed by structure name
+	for (MessageStructureMap::iterator structIter = m_dictionaryIndexedByOpCode.begin();
+		structIter != m_dictionaryIndexedByOpCode.end(); structIter++)
 	{
-		// formats the string as 
-		// Field Name = Value \r\n
-		ofs << iter->second.m_name << " = " << iter->second.m_value << endl;
+		// iterates in the map (according to the offset order)
+		for (MessageFieldMap::iterator iter = structIter->second->begin(); 
+			iter != structIter->second->end(); iter++)
+		{
+			// formats the string as 
+			// Field Name = Value \r\n
+			ofs << iter->second.m_name << " = " << iter->second.m_value << endl;
+		}
 	}
 
 	// closes the fd handler
@@ -226,44 +310,50 @@ void CParserHandler::printOut()
 {
 	// first line in console to print the report
 	TInt32 lineNum = 3;
-	// iterates in the map (according to the offset order)
-	for (MessageFieldMap::iterator iter = m_dictionary.begin(); iter != m_dictionary.end(); iter++)
+	// iterates through opcode - but it should have identical fields / content as indexed by structure name
+	for (MessageStructureMap::iterator structIter = m_dictionaryIndexedByOpCode.begin();
+		structIter != m_dictionaryIndexedByOpCode.end(); structIter++)
 	{
-		if (iter->second.m_refresh)
+		// iterates in the map (according to the offset order)
+		for (MessageFieldMap::iterator iter = structIter->second->begin(); 
+			iter != structIter->second->end(); iter++)
 		{
-			// no need to refresh it till the content has changed
-			iter->second.m_refresh = false;
-			// formats the string as 
-			// Field Name = Value \r\n
-			CAnsiString fieldStr;
-			CAnsiString valueStr;
-			COORD coord;
-			fieldStr.resetFormat();
-			fieldStr.setForegroundColor(Types::EANSICOLOR_CYAN);
-			fieldStr += iter->second.m_name;
+			if (iter->second.m_refresh)
+			{
+				// no need to refresh it till the content has changed
+				iter->second.m_refresh = false;
+				// formats the string as 
+				// Field Name = Value \r\n
+				CAnsiString fieldStr;
+				CAnsiString valueStr;
+				COORD coord;
+				fieldStr.resetFormat();
+				fieldStr.setForegroundColor(Types::EANSICOLOR_CYAN);
+				fieldStr += iter->second.m_name;
 
-			valueStr.resetFormat();
-			valueStr.setBold();
-			valueStr.setForegroundColor(Types::EANSICOLOR_MAGENTA);
-			valueStr += iter->second.m_value;
+				valueStr.resetFormat();
+				valueStr.setBold();
+				valueStr.setForegroundColor(Types::EANSICOLOR_MAGENTA);
+				valueStr += iter->second.m_value;
 
-			coord.Y = lineNum;
-			coord.X = 0;
-			SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-			cout << fieldStr.getData();
-			// connects the field name with the value with .........
-			for (TInt32 x = 0; x < (35 - iter->second.m_name.size()); x++) cout << ".";
+				coord.Y = lineNum;
+				coord.X = 0;
+				SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+				cout << fieldStr.getData();
+				// connects the field name with the value with .........
+				for (TInt32 x = 0; x < (35 - iter->second.m_name.size()); x++) cout << ".";
 
-			coord.Y = lineNum;
-			coord.X = 35;
-			SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-			// clears the value field
-			for (TInt32 x = 0; x < 40; x++) cout << " ";
-			// prints it out
-			SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-			cout << valueStr.getData();
+				coord.Y = lineNum;
+				coord.X = 35;
+				SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+				// clears the value field
+				for (TInt32 x = 0; x < 40; x++) cout << " ";
+				// prints it out
+				SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+				cout << valueStr.getData();
+			}
+			++lineNum;
 		}
-		++lineNum;
 	}
 }
 

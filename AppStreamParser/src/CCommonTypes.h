@@ -4,6 +4,7 @@
 #include <memory>
 #include <list>
 #include <map>
+#include <unordered_map>
 
 using namespace std;
 
@@ -26,6 +27,7 @@ namespace Types {
 		EFIELDTYPES_DOUBLE,
 		EFIELDTYPES_CHAR, // also byte type
 		EFIELDTYPES_BOOL,
+        EFIELDTYPES_ENUM,
 		EFIELDTYPES_LAST
 	};
 
@@ -44,6 +46,7 @@ namespace Types {
 		EANSICOLOR_WHITE
 	};
 
+    typedef map<int, string> GildaEnumMap;
 	// internal structure
 	struct SField
 	{
@@ -58,6 +61,7 @@ namespace Types {
 		// value (after parsing)
 		// decided to parse values to string
 		string m_value;
+        GildaEnumMap m_enum_dictionary;
 		// flag to know if this field should have the content refreshed
 		bool m_refresh;
 	};
@@ -69,6 +73,8 @@ namespace Types {
 	};
 
 	typedef map<TInt32, SField> MessageFieldMap;
+	typedef unordered_map<string, shared_ptr<MessageFieldMap>> MessageStructureMap;
+	//typedef unordered_map<TInt32, shared_ptr<MessageFieldMap>> MessageStructureOpCodeMap;
 	typedef list<SIncomingMsg> MessageBufferQ;
 
 }

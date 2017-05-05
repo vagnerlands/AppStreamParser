@@ -18,11 +18,19 @@ using namespace std;
 class CParserHandler 
 {
 public:
+    static const int s_MAX_ENUMERATORS_IN_GILDA = 32;
 	static CParserHandler* instance();
 	// return
 	// 0 success
 	// 1 field type isn't valid
-	TInt32 addField(char* fieldName, char* fieldType, int fieldOffset, int fieldSize);
+
+	TInt32 addField(char* structureName, 
+		TInt32 opCode,
+		char* fieldName, 
+		char* fieldType, 
+		TInt32 fieldOffset, 
+		TInt32 fieldSize, 
+		char* arr[s_MAX_ENUMERATORS_IN_GILDA]);
 	TInt32 parseStream(char* bufStream, int lengthOfStream, bool isBigEndian);
 	TInt32 sendStream(ISocket* socketout);
 	bool saveToFile(char* fileName);
@@ -36,7 +44,10 @@ private:
 	// Key is Offset (theoretically, should be only one)
 	// content is SField
 
-	MessageFieldMap m_dictionary;
+	//MessageFieldMap m_dictionary;
+	MessageStructureMap m_dictionaryIndexedByStructName;
+	MessageStructureMap m_dictionaryIndexedByOpCode;
+	//MessageStructureOpCodeMap m_dictionaryIndexedByOpCode;
 };
 
 #endif

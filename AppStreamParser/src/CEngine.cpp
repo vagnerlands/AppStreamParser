@@ -3,6 +3,9 @@
 #include "CWinThread.h"
 #include "CWinMutex.h"
 
+#define MAX_ENUMERATOR_SIZE 32
+#define ENUMERATOR_STR_SIZE 50
+
 CEngine* CEngine::m_pInstance = NULL;
 
 CEngine::~CEngine()
@@ -72,14 +75,23 @@ void CEngine::start()
 	// starts singletones - good practice
 	CParserHandler::instance();
 
+    // allocates bidimensional array of chars
+    char** arr = new char *[MAX_ENUMERATOR_SIZE];
+    // 30 is the longest list of enumerators found - AIS
+    for (int iCnt = 0; iCnt < MAX_ENUMERATOR_SIZE; iCnt++)
+    {
+        arr[iCnt] = new char[ENUMERATOR_STR_SIZE];
+        memset(arr[iCnt], 0, MAX_ENUMERATOR_SIZE);
+    }
 	// prepare the parser database
-	CParserHandler::instance()->addField("OpCode", "int", 0, 4);
-	CParserHandler::instance()->addField("Length", "uint", 4, 4);
-	CParserHandler::instance()->addField("Latitude", "float", 8, 4);
-	CParserHandler::instance()->addField("Longitude", "float", 12, 4);
-	CParserHandler::instance()->addField("Name1", "char", 16, 1);
-	CParserHandler::instance()->addField("Name2", "char", 17, 1);
-	CParserHandler::instance()->addField("Valid", "bool", 18, 4);
+	CParserHandler::instance()->addField("structVagner", 123, "OpCode", "int", 0, 4, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Length", "uint", 4, 4, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Latitude", "float", 8, 4, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Longitude", "float", 12, 4, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Name1", "char", 16, 1, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Name2", "char", 17, 1, arr);
+	CParserHandler::instance()->addField("structVagner", 123, "Valid", "bool", 18, 4, arr);
+    delete[] arr;
 	// uses clear screen command - to clean whatever was printed so far...
 	system("cls");
 	// creates a buffer mutex to avoid concurrency on m_messageQ

@@ -13,6 +13,38 @@ CParserHandler * CParserHandler::instance()
 	return s_pInstance;
 }
 
+TInt32 CParserHandler::addStruct(char * structureName, TInt32 opCode, EMessageDirection msgDirection)
+{
+	// 0 == success
+	// any other value means failure
+	TInt32 retVal = 0;
+	// structure name in string format
+	string fStructureName(structureName);
+	// temporary buffer - convert from integer to string operation
+	// no need for very long buffer
+	char opCodeIndex[18];
+	// converts opCode to char[]
+	sprintf_s(opCodeIndex, "%d", opCode);
+
+	// try to find given structure name in m_dictionary
+	MessageStructureMap::iterator structureIterator = m_dictionaryIndexedByStructName.find(fStructureName);
+	// in case the iterator is not valid
+	if (structureIterator == m_dictionaryIndexedByStructName.end())
+	{
+		// creates a new DS for the field messages within this structure
+		shared_ptr<SMessageStruct> newMsgStruct( new SMessageStruct() );
+		newMsgStruct->m_direction = msgDirection;
+		newMsgStruct->m_name = fStructureName;
+		// then adds a new item for the Structure
+		m_dictionaryIndexedByStructName.insert(make_pair(fStructureName, newMsgStruct));
+		m_dictionaryIndexedByOpCode.insert(make_pair(opCodeIndex, newMsgStruct));
+
+		retVal = 1;
+	}
+
+	return retVal;
+}
+
 TInt32
 CParserHandler::addField(char* structureName, 
 	TInt32 opCode,
@@ -32,9 +64,9 @@ CParserHandler::addField(char* structureName,
 	string fStructureName(structureName);
 	// temporary buffer - convert from integer to string operation
 	// no need for very long buffer
-	char tempBuf[18];
+	char opCodeIndex[18];
 	// converts opCode to char[]
-	sprintf_s(tempBuf, "%d", opCode);
+	sprintf_s(opCodeIndex, "%d", opCode);
 
 	cout << "addField called " << fieldType << " " << fieldType << endl;
 	if (fType == "int")
@@ -93,24 +125,83 @@ CParserHandler::addField(char* structureName,
 		// in case the iterator is not valid
 		if (structureIterator == m_dictionaryIndexedByStructName.end())
 		{
-			// creates a new DS for the field messages within this structure
-			shared_ptr<MessageFieldMap> newMsgField( new MessageFieldMap() );
-			//MessageFieldMap newMsg;
-			//newMsg.insert(make_pair(fieldOffset, newDBEntry));
-			// adds the new field to this fields DS
-			newMsgField->insert(make_pair(fieldOffset, newDBEntry));
+
+			shared_ptr<SMessageStruct> newMsgStruct(new SMessageStruct());
+			newMsgStruct->m_direction = EMESSAGEDIRECTION_Incoming;
+			newMsgStruct->m_name = fStructureName;
+			newMsgStruct->m_fields.insert(make_pair(fName, newDBEntry));
 			// then adds a new item for the Structure
-			m_dictionaryIndexedByStructName.insert(make_pair(fStructureName, newMsgField));
-			m_dictionaryIndexedByOpCode.insert(make_pair(tempBuf, newMsgField));
+			m_dictionaryIndexedByStructName.insert(make_pair(fStructureName, newMsgStruct));
+			m_dictionaryIndexedByOpCode.insert(make_pair(opCodeIndex, newMsgStruct));
 		}
 		else
 		{
 			// in case the structure already exists - just adds it to the DS
-			structureIterator->second->insert(make_pair(fieldOffset, newDBEntry));
+			structureIterator->second->m_fields.insert(make_pair(fName, newDBEntry));
 		}
 	}
 
 	return retVal;
+}
+
+string 
+CParserHandler::GetFieldValue(char * structureName, char * fieldName)
+{
+	shared_ptr<SMessageStruct> fieldContent = m_dictionaryIndexedByStructName[structureName];
+	MessageFieldMap::iterator fieldIterator = fieldContent->m_fields.find(fieldName);
+
+	if (fieldIterator != fieldContent->m_fields.end())
+	{
+		return fieldIterator->second.m_value;
+	}
+
+	return "<bad value>";
+}
+
+string 
+CParserHandler::GetFieldValue(TInt32 opCode, char* fieldName)
+{
+	// no need for very long buffer
+	char opCodeStr[18];
+	// converts opCode to char[]
+	sprintf_s(opCodeStr, "%d", opCode);
+
+	shared_ptr<SMessageStruct> fieldContent = m_dictionaryIndexedByOpCode[opCodeStr];
+	MessageFieldMap::iterator fieldIterator = fieldContent->m_fields.find(fieldName);
+
+	if (fieldIterator != fieldContent->m_fields.end())
+	{
+		return fieldIterator->second.m_value;
+	}
+
+	return "<bad value>";
+}
+
+void CParserHandler::SetFieldValue(char * structureName, char * fieldName, string value)
+{
+	shared_ptr<SMessageStruct> fieldContent = m_dictionaryIndexedByStructName[structureName];
+	MessageFieldMap::iterator fieldIterator = fieldContent->m_fields.find(fieldName);
+
+	if (fieldIterator != fieldContent->m_fields.end())
+	{
+		fieldIterator->second.m_value = value;
+	}
+}
+
+void CParserHandler::SetFieldValue(TInt32 opCode, char * fieldName, string value)
+{
+	// no need for very long buffer
+	char opCodeStr[18];
+	// converts opCode to char[]
+	sprintf_s(opCodeStr, "%d", opCode);
+
+	shared_ptr<SMessageStruct> fieldContent = m_dictionaryIndexedByOpCode[opCodeStr];
+	MessageFieldMap::iterator fieldIterator = fieldContent->m_fields.find(fieldName);
+
+	if (fieldIterator != fieldContent->m_fields.end())
+	{
+		fieldIterator->second.m_value = value;
+	}
 }
 
 TInt32
@@ -128,149 +219,143 @@ CParserHandler::parseStream(char * bufStream, int lengthOfStream, bool isBigEndi
 	// which structure iterator to be used in the parsing
 	MessageStructureMap::iterator structureIterator = m_dictionaryIndexedByOpCode.begin();
 	// go over till the pointer has reached the end of the stream buffer
-	while (curBuffPos < lengthOfStream)
+	for (MessageFieldMap::iterator fieldIterator = structureIterator->second->m_fields.begin();
+			fieldIterator != structureIterator->second->m_fields.end();
+		    fieldIterator++)
 	{
-		MessageFieldMap::iterator fieldIterator =  structureIterator->second->find(curBuffPos);
-		if (fieldIterator != structureIterator->second->end())
+		// input node
+		SField* node = &fieldIterator->second;
+		// integer/float/double convertion buffer
+		char numericBuf[20];
+		string t;
+		// temporary buffer
+		char maxBuf[s_MAX_BUFFER_SIZE];
+		// get the offset buffer from the field
+		curBuffPos = fieldIterator->second.m_offset;
+		// data buffer
+		char* allocBuf = new char[node->m_size];
+		// copies content of bufStream to this new temporary buffer
+		memcpy(allocBuf, bufStream + curBuffPos, node->m_size);
+		// if this is big endian, perform byte swapping accordingly
+		// not sure if char type should be parsed, though
+		if (isBigEndian)
 		{
-			// input node
-			SField* node = &fieldIterator->second;
-			// integer/float/double convertion buffer
-			char numericBuf[20];
-			string t;
-			// temporary buffer
-			char maxBuf[s_MAX_BUFFER_SIZE];
-			// data buffer
-			char* allocBuf = new char[node->m_size];
-			// copies content of bufStream to this new temporary buffer
-			memcpy(allocBuf, bufStream + curBuffPos, node->m_size);
-			// if this is big endian, perform byte swapping accordingly
-			// not sure if char type should be parsed, though
-			if (isBigEndian)
+			// byte iterator 
+			TInt32 bi = 0;
+			TInt32 fieldOffset = node->m_size - 1;
+			// iterates till the current byte iterator cursor reaches the middle point
+			while (bi < (fieldOffset - bi))
 			{
-				// byte iterator 
-				TInt32 bi = 0;
-				TInt32 fieldOffset = node->m_size - 1;
-				// iterates till the current byte iterator cursor reaches the middle point
-				while (bi < (fieldOffset - bi))
+				char swapByte = allocBuf[fieldOffset - bi];
+				allocBuf[fieldOffset - bi] = allocBuf[bi];
+				allocBuf[bi] = swapByte;
+				bi++;
+			}
+		}
+
+		switch (node->m_type)
+		{
+			case EFIELDTYPES_BOOL:
+				// temporary buffer
+				TInt32 boolVal;
+				// high risk of mem corruption!!!
+				memcpy(&boolVal, allocBuf, node->m_size);
+				if (boolVal > 0)
 				{
-					char swapByte = allocBuf[fieldOffset - bi];
-					allocBuf[fieldOffset - bi] = allocBuf[bi];
-					allocBuf[bi] = swapByte;
-					bi++;
+					if (node->m_value != "TRUE") node->m_refresh = true;
+					node->m_value = "TRUE";
 				}
-			}
-
-			switch (node->m_type)
-			{
-				case EFIELDTYPES_BOOL:
-					// temporary buffer
-					TInt32 boolVal;
-					// high risk of mem corruption!!!
-					memcpy(&boolVal, allocBuf, node->m_size);
-					if (boolVal > 0)
-					{
-						if (node->m_value != "TRUE") node->m_refresh = true;
-						node->m_value = "TRUE";
-					}
-					else
-					{
-						if (node->m_value != "FALSE") node->m_refresh = true;
-						node->m_value = "FALSE";
-					}
-					break;
-				case EFIELDTYPES_ENUM:
-					// temporary buffer
-					TUInt32 enumUIntVal;
-					// high risk of mem corruption!!!
-					memcpy(&enumUIntVal, allocBuf, node->m_size);
-                    //search for the value in the enum_dictionary
-                    locIt = node->m_enum_dictionary.find(enumUIntVal);
-                    if (locIt != node->m_enum_dictionary.end())
+				else
+				{
+					if (node->m_value != "FALSE") node->m_refresh = true;
+					node->m_value = "FALSE";
+				}
+				break;
+			case EFIELDTYPES_ENUM:
+				// temporary buffer
+				TUInt32 enumUIntVal;
+				// high risk of mem corruption!!!
+				memcpy(&enumUIntVal, allocBuf, node->m_size);
+                //search for the value in the enum_dictionary
+                locIt = node->m_enum_dictionary.find(enumUIntVal);
+                if (locIt != node->m_enum_dictionary.end())
+                {
+                    if (node->m_value != locIt->second)
                     {
-                        if (node->m_value != locIt->second)
-                        {
-                            node->m_refresh = true;
-                        }
-                        node->m_value = locIt->second;
+                        node->m_refresh = true;
                     }
-                    else
-                    {
-                        node->m_value = "<!> PARS_FAIL[";
-                        _itoa(enumUIntVal, buffer, 10);/*to_string(enumUIntVal)*/;
-                        node->m_value += buffer;
-                        node->m_value += "]";
-                    }
+                    node->m_value = locIt->second;
+                }
+                else
+                {
+                    node->m_value = "<!> PARS_FAIL[";
+                    _itoa(enumUIntVal, buffer, 10);/*to_string(enumUIntVal)*/;
+                    node->m_value += buffer;
+                    node->m_value += "]";
+                }
                     
-					break;
+				break;
 
-				case EFIELDTYPES_UINT32:
-					// temporary buffer
-					TUInt32 uintVal;
-					// high risk of mem corruption!!!
-					memcpy(&uintVal, allocBuf, node->m_size);
-					sprintf_s(numericBuf, "%d", uintVal);
-					t = numericBuf;
-					if (node->m_value != t) node->m_refresh = true;
-					node->m_value = t;
-					break;
-				case EFIELDTYPES_INT32:
-					// temporary buffer
-					int intVal;
-					// high risk of mem corruption!!!
-					memcpy(&intVal, allocBuf, node->m_size);
-					sprintf_s(numericBuf, "%d", intVal);
-					t = numericBuf;
-					if (node->m_value != t) node->m_refresh = true;
-					node->m_value = t;
-					break;
-				case EFIELDTYPES_FLOAT:
-					// temporary buffer
-					float floatVal;
-					// high risk of mem corruption!!!
-					memcpy(&floatVal, allocBuf, node->m_size);
-					sprintf_s(numericBuf, "%f", floatVal);
-					t = numericBuf;
-					if (node->m_value != t) node->m_refresh = true;
-					node->m_value = t;
-					break;
-				case EFIELDTYPES_DOUBLE:
-					// temporary buffer
-					double doubleVal;
-					// high risk of mem corruption!!!
-					memcpy(&doubleVal, allocBuf, node->m_size);
-					sprintf_s(numericBuf, "%f", doubleVal);
-					t = numericBuf;
-					if (node->m_value != t) node->m_refresh = true;
-					node->m_value = t;
-					break;
-				case EFIELDTYPES_CHAR:
-					// high risk of mem corruption!!!
-					memcpy(&maxBuf, allocBuf, node->m_size);
-					// null terminator
-					maxBuf[node->m_size] = 0;
-					node->m_value = maxBuf;
-					node->m_refresh = true;
-					break;
-				default:
-					// no parsing
-					break;
-			}
-			// no one wants memory leaks!
-			delete[] allocBuf;
-			allocBuf = nullptr;
-
-			// add the same number of bytes to the current buffer since the current was parsed
-			curBuffPos += node->m_size;
+			case EFIELDTYPES_UINT32:
+				// temporary buffer
+				TUInt32 uintVal;
+				// high risk of mem corruption!!!
+				memcpy(&uintVal, allocBuf, node->m_size);
+				sprintf_s(numericBuf, "%d", uintVal);
+				t = numericBuf;
+				if (node->m_value != t) node->m_refresh = true;
+				node->m_value = t;
+				break;
+			case EFIELDTYPES_INT32:
+				// temporary buffer
+				int intVal;
+				// high risk of mem corruption!!!
+				memcpy(&intVal, allocBuf, node->m_size);
+				sprintf_s(numericBuf, "%d", intVal);
+				t = numericBuf;
+				if (node->m_value != t) node->m_refresh = true;
+				node->m_value = t;
+				break;
+			case EFIELDTYPES_FLOAT:
+				// temporary buffer
+				float floatVal;
+				// high risk of mem corruption!!!
+				memcpy(&floatVal, allocBuf, node->m_size);
+				sprintf_s(numericBuf, "%f", floatVal);
+				t = numericBuf;
+				if (node->m_value != t) node->m_refresh = true;
+				node->m_value = t;
+				break;
+			case EFIELDTYPES_DOUBLE:
+				// temporary buffer
+				double doubleVal;
+				// high risk of mem corruption!!!
+				memcpy(&doubleVal, allocBuf, node->m_size);
+				sprintf_s(numericBuf, "%f", doubleVal);
+				t = numericBuf;
+				if (node->m_value != t) node->m_refresh = true;
+				node->m_value = t;
+				break;
+			case EFIELDTYPES_CHAR:
+				// high risk of mem corruption!!!
+				memcpy(&maxBuf, allocBuf, node->m_size);
+				// null terminator
+				maxBuf[node->m_size] = 0;
+				node->m_value = maxBuf;
+				node->m_refresh = true;
+				break;
+			default:
+				// no parsing
+				break;
 		}
-		else
-		{
-			// no item with this offset in the list
-			// move one byte forward
-			curBuffPos++;
-		}
+		// no one wants memory leaks!
+		delete[] allocBuf;
+		allocBuf = nullptr;
 
+		// add the same number of bytes to the current buffer since the current was parsed
+		curBuffPos += node->m_size;
 	}
+	
 	return 0;
 }
 
@@ -292,8 +377,8 @@ bool CParserHandler::saveToFile(char * fileName)
 		structIter != m_dictionaryIndexedByOpCode.end(); structIter++)
 	{
 		// iterates in the map (according to the offset order)
-		for (MessageFieldMap::iterator iter = structIter->second->begin(); 
-			iter != structIter->second->end(); iter++)
+		for (MessageFieldMap::iterator iter = structIter->second->m_fields.begin(); 
+			iter != structIter->second->m_fields.end(); iter++)
 		{
 			// formats the string as 
 			// Field Name = Value \r\n
@@ -315,8 +400,8 @@ void CParserHandler::printOut()
 		structIter != m_dictionaryIndexedByOpCode.end(); structIter++)
 	{
 		// iterates in the map (according to the offset order)
-		for (MessageFieldMap::iterator iter = structIter->second->begin(); 
-			iter != structIter->second->end(); iter++)
+		for (MessageFieldMap::iterator iter = structIter->second->m_fields.begin();
+			iter != structIter->second->m_fields.end(); iter++)
 		{
 			if (iter->second.m_refresh)
 			{

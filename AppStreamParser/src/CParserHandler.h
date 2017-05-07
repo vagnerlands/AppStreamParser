@@ -20,10 +20,10 @@ class CParserHandler
 public:
     static const int s_MAX_ENUMERATORS_IN_GILDA = 32;
 	static CParserHandler* instance();
+	TInt32 addStruct(char* structureName, TInt32 opCode, EMessageDirection msgDirection);
 	// return
 	// 0 success
 	// 1 field type isn't valid
-
 	TInt32 addField(char* structureName, 
 		TInt32 opCode,
 		char* fieldName, 
@@ -31,6 +31,13 @@ public:
 		TInt32 fieldOffset, 
 		TInt32 fieldSize, 
 		char* arr[s_MAX_ENUMERATORS_IN_GILDA]);
+
+	string GetFieldValue(char* structureName, char* fieldName);
+	string GetFieldValue(TInt32 opCode, char* fieldName);
+
+	void SetFieldValue(char* structureName, char* fieldName, string value);
+	void SetFieldValue(TInt32 opCode, char* fieldName, string value);
+
 	TInt32 parseStream(char* bufStream, int lengthOfStream, bool isBigEndian);
 	TInt32 sendStream(ISocket* socketout);
 	bool saveToFile(char* fileName);

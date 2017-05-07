@@ -83,6 +83,8 @@ void CEngine::start()
         arr[iCnt] = new char[ENUMERATOR_STR_SIZE];
         memset(arr[iCnt], 0, MAX_ENUMERATOR_SIZE);
     }
+
+	CParserHandler::instance()->addStruct("structVagner", 123, EMESSAGEDIRECTION_Outgoing);
 	// prepare the parser database
 	CParserHandler::instance()->addField("structVagner", 123, "OpCode", "int", 0, 4, arr);
 	CParserHandler::instance()->addField("structVagner", 123, "Length", "uint", 4, 4, arr);
@@ -100,6 +102,8 @@ void CEngine::start()
 	m_listeningThread->createThread("ThListenerUDP", instance()->ThreadListener);
 	// runs the thread (listener)
 	m_socket->startListenSocket();
+
+	//CParserHandler::instance()->SetFieldValue("structVagner", "Longitude", "55.1234");
 	
 	// finally - call run
 	run();
@@ -121,6 +125,8 @@ void CEngine::run()
 			m_messageQ.pop_back();
 			// must parse this stream buffer
 			CParserHandler::instance()->parseStream(&nextMsgToProcess.m_data[0], nextMsgToProcess.m_length, true);
+
+			string retVal = CParserHandler::instance()->GetFieldValue("structVagner", "Longitude");
 		}
 		// end of critical area - operating with the m_messageQ
 		m_bufferMutex->mutexUnlock();

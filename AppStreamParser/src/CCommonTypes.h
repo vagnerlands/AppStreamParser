@@ -46,6 +46,12 @@ namespace Types {
 		EANSICOLOR_WHITE
 	};
 
+	enum EMessageDirection
+	{
+		EMESSAGEDIRECTION_Incoming = 0,
+		EMESSAGEDIRECTION_Outgoing
+	};
+
     typedef map<int, string> GildaEnumMap;
 	// internal structure
 	struct SField
@@ -61,6 +67,7 @@ namespace Types {
 		// value (after parsing)
 		// decided to parse values to string
 		string m_value;
+		// gilda enumerator
         GildaEnumMap m_enum_dictionary;
 		// flag to know if this field should have the content refreshed
 		bool m_refresh;
@@ -72,8 +79,16 @@ namespace Types {
 		TByte m_data[s_MAX_BUFFER_SIZE];
 	};
 
-	typedef map<TInt32, SField> MessageFieldMap;
-	typedef unordered_map<string, shared_ptr<MessageFieldMap>> MessageStructureMap;
+	typedef map<string, SField> MessageFieldMap;
+
+	struct SMessageStruct
+	{
+		string m_name;
+		EMessageDirection m_direction;
+		MessageFieldMap m_fields;
+	};
+
+	typedef unordered_map<string, shared_ptr<SMessageStruct>> MessageStructureMap;
 	//typedef unordered_map<TInt32, shared_ptr<MessageFieldMap>> MessageStructureOpCodeMap;
 	typedef list<SIncomingMsg> MessageBufferQ;
 
